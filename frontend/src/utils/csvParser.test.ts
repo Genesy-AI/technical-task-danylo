@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseCsv, isValidEmail } from './csvParser'
+import { parseCsv, isValidEmail, normalizePhoneNumber } from './csvParser'
 
 describe('isValidEmail', () => {
   it('should return true for valid email addresses', () => {
@@ -211,6 +211,151 @@ Jane,Johnson,jane@example.com`
     expect(result[2].isValid).toBe(true)
   })
 
+  it('should accept a valid ISO 3166-1 alpha-2 country code', () => {
+    const csv = `firstName,lastName,email,countryCode
+John,Doe,john@example.com,US`
+
+    const result = parseCsv(csv)
+
+    expect(result[0].countryCode).toBe('US')
+    expect(result[0].isValid).toBe(true)
+    expect(result[0].errors).not.toContain('Invalid country code')
+  })
+
+  it('should reject a numeric country code', () => {
+    const csv = `firstName,lastName,email,countryCode
+John,Doe,john@example.com,12`
+
+    const result = parseCsv(csv)
+
+    expect(result[0].isValid).toBe(false)
+    expect(result[0].errors).toContain('Invalid country code')
+  })
+
+  it('should reject a country code that is not a real ISO code', () => {
+    const csv = `firstName,lastName,email,countryCode
+John,Doe,john@example.com,XXX`
+
+    const result = parseCsv(csv)
+
+    expect(result[0].isValid).toBe(false)
+    expect(result[0].errors).toContain('Invalid country code')
+  })
+
+  it('should parse phoneNumber, yearsInRole, and linkedinUrl when valid', () => {
+    const csv = `firstName,lastName,email,phoneNumber,yearsInRole,linkedinUrl
+John,Doe,john@example.com,+1-555-0100,5,https://linkedin.com/in/john-doe`
+
+    const result = parseCsv(csv)
+
+    expect(result[0].phoneNumber).toBe('+15550100')
+    expect(result[0].yearsInRole).toBe(5)
+    expect(result[0].linkedinUrl).toBe('https://linkedin.com/in/john-doe')
+    expect(result[0].isValid).toBe(true)
+  })
+
+  it('should leave phoneNumber, yearsInRole, and linkedinUrl undefined when absent', () => {
+    const csv = `firstName,lastName,email
+John,Doe,john@example.com`
+
+    const result = parseCsv(csv)
+
+    expect(result[0].phoneNumber).toBeUndefined()
+    expect(result[0].yearsInRole).toBeUndefined()
+    expect(result[0].linkedinUrl).toBeUndefined()
+    expect(result[0].isValid).toBe(true)
+  })
+
+  it('should reject a non-numeric yearsInRole', () => {
+    const csv = `firstName,lastName,email,yearsInRole
+John,Doe,john@example.com,not-a-number`
+
+    const result = parseCsv(csv)
+
+    expect(result[0].isValid).toBe(false)
+    expect(result[0].errors).toContain('Years at company must be a number')
+  })
+
+  it('should reject a negative yearsInRole', () => {
+    const csv = `firstName,lastName,email,yearsInRole
+John,Doe,john@example.com,-2`
+
+    const result = parseCsv(csv)
+
+    expect(result[0].isValid).toBe(false)
+    expect(result[0].errors).toContain('Years at company must be a number')
+  })
+
+  it('should reject a linkedinUrl that does not point to linkedin.com', () => {
+    const csv = `firstName,lastName,email,linkedinUrl
+John,Doe,john@example.com,https://facebook.com/john.doe`
+
+    const result = parseCsv(csv)
+
+    expect(result[0].isValid).toBe(false)
+    expect(result[0].errors).toContain('Invalid LinkedIn URL')
+  })
+
+  it('should strip the extension from a phone number with a country code', () => {
+    const csv = `firstName,lastName,email,phoneNumber
+John,Doe,john@example.com,+1-280-754-0462x2154`
+
+    const result = parseCsv(csv)
+
+    expect(result[0].phoneNumber).toBe('+12807540462')
+    expect(result[0].isValid).toBe(true)
+  })
+
+  it('should remove dots and mask a number with no country code with a leading +', () => {
+    const csv = `firstName,lastName,email,phoneNumber
+John,Doe,john@example.com,133.622.7535`
+
+    const result = parseCsv(csv)
+
+    expect(result[0].phoneNumber).toBe('+1336227535')
+    expect(result[0].isValid).toBe(true)
+  })
+
+  it('should remove dashes and parentheses from other common phone formats', () => {
+    const csv = `firstName,lastName,email,phoneNumber
+John,Doe,john@example.com,(731)123-9702`
+
+    const result = parseCsv(csv)
+
+    expect(result[0].phoneNumber).toBe('+7311239702')
+    expect(result[0].isValid).toBe(true)
+  })
+
+  it('should strip one 0 from a double leading-zero (00) international prefix', () => {
+    const csv = `firstName,lastName,email,phoneNumber
+John,Doe,john@example.com,001-464-312-8555`
+
+    const result = parseCsv(csv)
+
+    expect(result[0].phoneNumber).toBe('+014643128555')
+    expect(result[0].isValid).toBe(true)
+  })
+
+  it('should normalize a phone number without an extension', () => {
+    const csv = `firstName,lastName,email,phoneNumber
+John,Doe,john@example.com,+44 20 7946 0958`
+
+    const result = parseCsv(csv)
+
+    expect(result[0].phoneNumber).toBe('+442079460958')
+    expect(result[0].isValid).toBe(true)
+  })
+
+  it('should reject a value with too few digits to be a phone number', () => {
+    const csv = `firstName,lastName,email,phoneNumber
+John,Doe,john@example.com,12345`
+
+    const result = parseCsv(csv)
+
+    expect(result[0].isValid).toBe(false)
+    expect(result[0].errors).toContain('Invalid phone number')
+  })
+
   it('should handle whitespace in fields', () => {
     const csv = `firstName,lastName,email
  John , Doe , john@example.com `
@@ -222,5 +367,36 @@ Jane,Johnson,jane@example.com`
     expect(result[0].lastName).toBe('Doe')
     expect(result[0].email).toBe('john@example.com')
     expect(result[0].isValid).toBe(true)
+  })
+})
+
+describe('normalizePhoneNumber', () => {
+  it('strips a "x<digits>" extension from a dashed number with a country code', () => {
+    expect(normalizePhoneNumber('+1-280-754-0462x2154')).toBe('+12807540462')
+  })
+
+  it('normalizes a spaced international number with no extension', () => {
+    expect(normalizePhoneNumber('+44 20 7946 0958')).toBe('+442079460958')
+  })
+
+  it('recognizes "ext" and "extension" as extension markers and strips them too', () => {
+    expect(normalizePhoneNumber('+1 280 754 0462 ext 2154')).toBe('+12807540462')
+    expect(normalizePhoneNumber('+1 280 754 0462 extension 2154')).toBe('+12807540462')
+  })
+
+  it('removes dots/dashes/parentheses and masks a number with no country code with a leading +', () => {
+    expect(normalizePhoneNumber('133.622.7535')).toBe('+1336227535')
+    expect(normalizePhoneNumber('(731)123-9702')).toBe('+7311239702')
+    expect(normalizePhoneNumber('063.430.8860x4762')).toBe('+0634308860')
+  })
+
+  it('only strips a 0 for a double leading-zero (00) international prefix, not a single leading 0', () => {
+    expect(normalizePhoneNumber('063.430.8860')).toBe('+0634308860')
+    expect(normalizePhoneNumber('001-464-312-8555')).toBe('+014643128555')
+  })
+
+  it('returns null for an implausibly short or long number', () => {
+    expect(normalizePhoneNumber('+123')).toBeNull()
+    expect(normalizePhoneNumber('+1234567890123456789')).toBeNull()
   })
 })

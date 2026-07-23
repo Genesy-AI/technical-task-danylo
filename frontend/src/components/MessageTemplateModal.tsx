@@ -11,6 +11,18 @@ interface MessageTemplateModalProps {
   selectedLeadsCount: number
 }
 
+const availableFields = [
+  'firstName',
+  'lastName',
+  'email',
+  'jobTitle',
+  'companyName',
+  'countryCode',
+  'phoneNumber',
+  'yearsInRole',
+  'linkedinUrl',
+]
+
 export const MessageTemplateModal: FC<MessageTemplateModalProps> = ({
   isOpen,
   onClose,
@@ -18,6 +30,7 @@ export const MessageTemplateModal: FC<MessageTemplateModalProps> = ({
   selectedLeadsCount,
 }) => {
   const [template, setTemplate] = useState('')
+  const [fieldToInsert, setFieldToInsert] = useState(availableFields[0])
   const [generationResult, setGenerationResult] = useState<{
     success: boolean
     generatedCount: number
@@ -106,8 +119,6 @@ export const MessageTemplateModal: FC<MessageTemplateModalProps> = ({
     }
   }, [isOpen, handleClose])
 
-  const availableFields = ['firstName', 'lastName', 'email', 'jobTitle', 'companyName', 'countryCode']
-
   const insertField = (field: string) => {
     if (textareaRef.current) {
       const textarea = textareaRef.current
@@ -156,18 +167,28 @@ export const MessageTemplateModal: FC<MessageTemplateModalProps> = ({
                 Message Template
               </label>
               <div className="space-y-3">
-                <div className="flex flex-wrap gap-2">
+                {/* Dropdown instead of one button per field: the field list keeps growing (already
+                    9 fields), and a flat button row would keep expanding without bound. */}
+                <div className="flex items-center gap-2">
                   <span className="text-sm text-gray-600">Insert field:</span>
-                  {availableFields.map((field) => (
-                    <button
-                      key={field}
-                      type="button"
-                      onClick={() => insertField(field)}
-                      className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded hover:bg-blue-200 transition-colors"
-                    >
-                      {`{${field}}`}
-                    </button>
-                  ))}
+                  <select
+                    value={fieldToInsert}
+                    onChange={(e) => setFieldToInsert(e.target.value)}
+                    className="text-sm border border-gray-300 rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    {availableFields.map((field) => (
+                      <option key={field} value={field}>
+                        {`{${field}}`}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => insertField(fieldToInsert)}
+                    className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded hover:bg-blue-200 transition-colors"
+                  >
+                    Insert
+                  </button>
                 </div>
                 <textarea
                   ref={textareaRef}

@@ -100,6 +100,9 @@ export const CsvImportModal: FC<CsvImportModalProps> = ({ isOpen, onClose }) => 
         jobTitle: lead.jobTitle || undefined,
         countryCode: lead.countryCode || undefined,
         companyName: lead.companyName || undefined,
+        phoneNumber: lead.phoneNumber || undefined,
+        yearsInRole: lead.yearsInRole,
+        linkedinUrl: lead.linkedinUrl || undefined,
       }))
 
       return api.leads.bulkImport({ leads: leadsToImport })
@@ -238,7 +241,7 @@ export const CsvImportModal: FC<CsvImportModalProps> = ({ isOpen, onClose }) => 
                   </p>
                   <p className="text-sm text-gray-500">
                     CSV must include: firstName, lastName, email (required). Optional: jobTitle, countryCode,
-                    companyName
+                    companyName, phoneNumber, yearsInRole, linkedinUrl
                   </p>
                 </div>
               )}

@@ -9,6 +9,9 @@ describe('generateMessageFromTemplate', () => {
     jobTitle: 'Software Engineer',
     companyName: 'Tech Corp',
     countryCode: 'US',
+    phoneNumber: '+1-555-0100',
+    yearsInRole: 3,
+    linkedinUrl: 'https://linkedin.com/in/john-doe',
   }
 
   const partialLead: Lead = {
@@ -45,11 +48,24 @@ describe('generateMessageFromTemplate', () => {
 
     it('should handle template with all available fields', () => {
       const template =
-        'Name: {firstName} {lastName}, Email: {email}, Job: {jobTitle} at {companyName}, Country: {countryCode}'
+        'Name: {firstName} {lastName}, Email: {email}, Job: {jobTitle} at {companyName}, Country: {countryCode}, Phone: {phoneNumber}, Years: {yearsInRole}, LinkedIn: {linkedinUrl}'
       const result = generateMessageFromTemplate(template, fullLead)
       expect(result).toBe(
-        'Name: John Doe, Email: john.doe@example.com, Job: Software Engineer at Tech Corp, Country: US'
+        'Name: John Doe, Email: john.doe@example.com, Job: Software Engineer at Tech Corp, Country: US, Phone: +1-555-0100, Years: 3, LinkedIn: https://linkedin.com/in/john-doe'
       )
+    })
+
+    it('should stringify a numeric yearsInRole field', () => {
+      const template = 'Years in role: {yearsInRole}'
+      const result = generateMessageFromTemplate(template, fullLead)
+      expect(result).toBe('Years in role: 3')
+    })
+
+    it('should not treat a yearsInRole of 0 as a missing field', () => {
+      const zeroYearsLead: Lead = { firstName: 'New', yearsInRole: 0 }
+      const template = 'Years in role: {yearsInRole}'
+      const result = generateMessageFromTemplate(template, zeroYearsLead)
+      expect(result).toBe('Years in role: 0')
     })
 
     it('should handle template with no field placeholders', () => {
@@ -101,6 +117,18 @@ describe('generateMessageFromTemplate', () => {
       expect(() => generateMessageFromTemplate(template, minimalLead)).toThrow(
         'Missing required field: lastName'
       )
+    })
+
+    it('should throw error when phoneNumber/yearsInRole/linkedinUrl are missing', () => {
+      expect(() =>
+        generateMessageFromTemplate('Call me at {phoneNumber}', minimalLead)
+      ).toThrow('Missing required field: phoneNumber')
+      expect(() =>
+        generateMessageFromTemplate('{yearsInRole} years in role', minimalLead)
+      ).toThrow('Missing required field: yearsInRole')
+      expect(() =>
+        generateMessageFromTemplate('Find me at {linkedinUrl}', minimalLead)
+      ).toThrow('Missing required field: linkedinUrl')
     })
   })
 

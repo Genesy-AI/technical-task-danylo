@@ -1,4 +1,5 @@
 import Papa from 'papaparse'
+import { isValidCountryCode } from './isoCountryCodes'
 
 export interface CsvLead {
   firstName: string
@@ -7,6 +8,9 @@ export interface CsvLead {
   jobTitle?: string
   countryCode?: string
   companyName?: string
+  phoneNumber?: string
+  yearsInRole?: number
+  linkedinUrl?: string
   isValid: boolean
   errors: string[]
   rowIndex: number
@@ -15,6 +19,31 @@ export interface CsvLead {
 export const isValidEmail = (email: string): boolean => {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
   return emailRegex.test(email)
+}
+
+export const isValidLinkedinUrl = (url: string): boolean => {
+  const linkedinUrlRegex = /^(https?:\/\/)?([\w-]+\.)?linkedin\.com\/.+$/i
+  return linkedinUrlRegex.test(url.trim())
+}
+
+// Normalizes any phone-shaped string into a "+"-prefixed number: drops an extension suffix
+// (x2154/ext2154/extension 2154) entirely, strips all formatting punctuation (dots, dashes,
+// parentheses, spaces), drops a single leading 00, then prefixes "+". Returns null only if too
+// few/many digits remain to plausibly be a phone number.
+export const normalizePhoneNumber = (value: string): string | null => {
+  const withoutExtension = value.trim().replace(/\s*(?:x|ext\.?|extension)\s*\d+\s*$/i, '')
+
+  let digits = withoutExtension.replace(/\D/g, '')
+
+  if (digits.startsWith('00')) {
+    digits = digits.slice(1)
+  }
+
+  if (digits.length < 7 || digits.length > 15) {
+    return null
+  }
+
+  return `+${digits}`
 }
 
 export const parseCsv = (content: string): CsvLead[] => {
@@ -73,6 +102,15 @@ export const parseCsv = (content: string): CsvLead[] => {
         case 'companyname':
           lead.companyName = trimmedValue || undefined
           break
+        case 'phonenumber':
+          lead.phoneNumber = trimmedValue || undefined
+          break
+        case 'yearsinrole':
+          lead.yearsInRole = trimmedValue ? Number(trimmedValue) : undefined
+          break
+        case 'linkedinurl':
+          lead.linkedinUrl = trimmedValue || undefined
+          break
       }
     })
 
@@ -87,6 +125,23 @@ export const parseCsv = (content: string): CsvLead[] => {
       errors.push('Email is required')
     } else if (!isValidEmail(lead.email)) {
       errors.push('Invalid email format')
+    }
+    if (lead.countryCode && !isValidCountryCode(lead.countryCode)) {
+      errors.push('Invalid country code')
+    }
+    if (lead.yearsInRole !== undefined && (!Number.isFinite(lead.yearsInRole) || lead.yearsInRole < 0)) {
+      errors.push('Years at company must be a number')
+    }
+    if (lead.linkedinUrl && !isValidLinkedinUrl(lead.linkedinUrl)) {
+      errors.push('Invalid LinkedIn URL')
+    }
+    if (lead.phoneNumber) {
+      const normalizedPhone = normalizePhoneNumber(lead.phoneNumber)
+      if (!normalizedPhone) {
+        errors.push('Invalid phone number')
+      } else {
+        lead.phoneNumber = normalizedPhone
+      }
     }
 
     data.push({
